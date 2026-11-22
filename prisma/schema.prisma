@@ -1,0 +1,161 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  TECHNICIAN
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
+}
+
+enum BookingStatus {
+  REQUESTED
+  ACCEPTED
+  DECLINED
+  PAID
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentProvider {
+  STRIPE
+  SSLCOMMERZ
+}
+
+model User {
+  id                String             @id @default(uuid())
+  name              String
+  email             String             @unique
+  passwordHash      String
+  role              Role
+  status            UserStatus         @default(ACTIVE)
+  phone             String?
+  createdAt         DateTime           @default(now())
+  technicianProfile TechnicianProfile?
+  bookings          Booking[]          @relation("CustomerBookings")
+  reviews           Review[]
+}
+
+model TechnicianProfile {
+  id              String             @id @default(uuid())
+  userId          String             @unique
+  user            User               @relation(fields: [userId], references: [id])
+  bio             String?
+  skills          String[]
+  experienceYears Int                @default(0)
+  location        String
+  hourlyRate      Decimal            @db.Decimal(10, 2)
+  avgRating       Float              @default(0)
+  reviewCount     Int                @default(0)
+  services        Service[]
+  slots           AvailabilitySlot[]
+  bookings        Booking[]
+  reviews         Review[]
+
+  @@index([location])
+  @@index([avgRating])
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  isActive Boolean   @default(true)
+  services Service[]
+}
+
+model Service {
+  id           String            @id @default(uuid())
+  technicianId String
+  categoryId   String
+  title        String
+  description  String?
+  price        Decimal           @db.Decimal(10, 2)
+  technician   TechnicianProfile @relation(fields: [technicianId], references: [id])
+  category     Category          @relation(fields: [categoryId], references: [id])
+  bookings     Booking[]
+
+  @@index([categoryId])
+}
+
+model AvailabilitySlot {
+  id           String            @id @default(uuid())
+  technicianId String
+  startTime    DateTime
+  endTime      DateTime
+  isBooked     Boolean           @default(false)
+  technician   TechnicianProfile @relation(fields: [technicianId], references: [id])
+  bookings     Booking[]
+
+  @@index([technicianId, startTime])
+}
+
+model Booking {
+  id           String            @id @default(uuid())
+  customerId   String
+  technicianId String
+  serviceId    String
+  slotId       String
+  address      String
+  notes        String?
+  totalAmount  Decimal           @db.Decimal(10, 2)
+  status       BookingStatus     @default(REQUESTED)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  customer     User              @relation("CustomerBookings", fields: [customerId], references: [id])
+  technician   TechnicianProfile @relation(fields: [technicianId], references: [id])
+  service      Service           @relation(fields: [serviceId], references: [id])
+  slot         AvailabilitySlot  @relation(fields: [slotId], references: [id])
+  payments     Payment[]
+  review       Review?
+
+  @@index([status])
+  @@index([customerId])
+  @@index([technicianId])
+}
+
+model Payment {
+  id             String          @id @default(uuid())
+  transactionId  String          @unique
+  bookingId      String
+  amount         Decimal         @db.Decimal(10, 2)
+  currency       String
+  method         String?
+  provider       PaymentProvider
+  status         PaymentStatus   @default(PENDING)
+  paidAt         DateTime?
+  gatewayPayload Json?
+  createdAt      DateTime        @default(now())
+  booking        Booking         @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+}
+
+model Review {
+  id           String            @id @default(uuid())
+  bookingId    String            @unique
+  customerId   String
+  technicianId String
+  rating       Int
+  comment      String?
+  createdAt    DateTime          @default(now())
+  booking      Booking           @relation(fields: [bookingId], references: [id])
+  customer     User              @relation(fields: [customerId], references: [id])
+  technician   TechnicianProfile @relation(fields: [technicianId], references: [id])
+}

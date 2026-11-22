@@ -8,6 +8,8 @@ import {
   updateServiceSchema,
   deleteServiceSchema,
   updateAvailabilitySchema,
+  technicianBookingActionSchema,
+  technicianBookingsQuerySchema,
 } from './technician.validation';
 import { technicianController } from './technician.controller';
 
@@ -39,6 +41,18 @@ router.put(
   '/availability',
   validate(updateAvailabilitySchema),
   technicianController.updateAvailability,
+);
+
+// Technician bookings
+router.get(
+  '/bookings',
+  validate(technicianBookingsQuerySchema),
+  technicianController.listBookings,
+);
+router.patch(
+  '/bookings/:id',
+  validate(technicianBookingActionSchema),
+  technicianController.handleBookingAction,
 );
 
 export default router;

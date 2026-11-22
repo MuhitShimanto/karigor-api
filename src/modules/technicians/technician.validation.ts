@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BookingStatus } from '@prisma/client';
 
 export const updateProfileSchema = z.object({
   body: z.object({
@@ -45,5 +46,22 @@ export const updateAvailabilitySchema = z.object({
         endTime: z.string().datetime(),
       }),
     ),
+  }),
+});
+
+export const technicianBookingActionSchema = z.object({
+  params: z.object({
+    id: z.string().min(1),
+  }),
+  body: z.object({
+    action: z.enum(['accept', 'decline', 'start', 'complete']),
+  }),
+});
+
+export const technicianBookingsQuerySchema = z.object({
+  query: z.object({
+    status: z.nativeEnum(BookingStatus).optional(),
+    page: z.coerce.number().int().min(1).optional().default(1),
+    limit: z.coerce.number().int().min(1).max(50).optional().default(10),
   }),
 });

@@ -1,6 +1,23 @@
 import { prisma } from '../../config/prisma';
 import { ApiError } from '../../utils/ApiError';
-import { Prisma } from '@prisma/client';
+import { getPagination } from '../../utils/pagination';
+import { assertTransition } from '../bookings/booking.stateMachine';
+import { Prisma, BookingStatus } from '@prisma/client';
+
+export type TechnicianAction = 'accept' | 'decline' | 'start' | 'complete';
+
+const actionToStatusMap: Record<TechnicianAction, BookingStatus> = {
+  accept: 'ACCEPTED',
+  decline: 'DECLINED',
+  start: 'IN_PROGRESS',
+  complete: 'COMPLETED',
+};
+
+export interface TechnicianBookingsQuery {
+  status?: BookingStatus;
+  page?: number;
+  limit?: number;
+}
 
 export const technicianService = {
   async getProfileByUserId(userId: string) {
@@ -162,7 +179,6 @@ export const technicianService = {
       endTime: new Date(s.endTime),
     }));
 
-    // 1. Validate startTime in the future and endTime > startTime
     for (const slot of parsedSlots) {
       if (slot.startTime <= now) {
         throw new ApiError(400, 'Slot start time must be in the future');
@@ -172,7 +188,6 @@ export const technicianService = {
       }
     }
 
-    // 2. Validate internal overlaps
     parsedSlots.sort((a, b) => a.startTime.getTime() - b.startTime.getTime());
     for (let i = 1; i < parsedSlots.length; i++) {
       if (parsedSlots[i].startTime < parsedSlots[i - 1].endTime) {
@@ -180,7 +195,6 @@ export const technicianService = {
       }
     }
 
-    // 3. Validate overlap with existing booked slots
     const existingBookedSlots = await prisma.availabilitySlot.findMany({
       where: {
         technicianId: profile.id,
@@ -200,7 +214,6 @@ export const technicianService = {
       }
     }
 
-    // 4. Replace future unbooked slots
     return prisma.$transaction(async (tx) => {
       await tx.availabilitySlot.deleteMany({
         where: {
@@ -224,6 +237,82 @@ export const technicianService = {
       return tx.availabilitySlot.findMany({
         where: { technicianId: profile.id },
         orderBy: { startTime: 'asc' },
+      });
+    });
+  },
+
+  async listBookings(userId: string, query: TechnicianBookingsQuery) {
+    const profile = await this.getProfileByUserId(userId);
+    const { skip, take, page, limit } = getPagination(query);
+
+    const where: Prisma.BookingWhereInput = {
+      technicianId: profile.id,
+      ...(query.status && { status: query.status }),
+    };
+
+    const [items, total] = await prisma.$transaction([
+      prisma.booking.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          service: true,
+          slot: true,
+          customer: {
+            select: { id: true, name: true, email: true, phone: true },
+          },
+        },
+      }),
+      prisma.booking.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
+  async handleBookingAction(
+    userId: string,
+    bookingId: string,
+    action: TechnicianAction,
+  ) {
+    const profile = await this.getProfileByUserId(userId);
+    const booking = await prisma.booking.findFirst({
+      where: { id: bookingId, technicianId: profile.id },
+    });
+
+    if (!booking) {
+      throw new ApiError(404, 'Booking not found');
+    }
+
+    const targetStatus = actionToStatusMap[action];
+    assertTransition(booking.status, targetStatus);
+
+    return prisma.$transaction(async (tx) => {
+      if (targetStatus === 'DECLINED') {
+        await tx.availabilitySlot.update({
+          where: { id: booking.slotId },
+          data: { isBooked: false },
+        });
+      }
+
+      return tx.booking.update({
+        where: { id: bookingId },
+        data: { status: targetStatus },
+        include: {
+          service: true,
+          slot: true,
+          customer: {
+            select: { id: true, name: true, email: true, phone: true },
+          },
+        },
       });
     });
   },

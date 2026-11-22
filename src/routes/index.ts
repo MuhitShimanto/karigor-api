@@ -7,6 +7,7 @@ import publicTechnicianRoutes from '../modules/technicians/publicTechnician.rout
 import serviceRoutes from '../modules/services/service.routes';
 import bookingRoutes from '../modules/bookings/booking.routes';
 import paymentRoutes from '../modules/payments/payment.routes';
+import reviewRoutes from '../modules/reviews/review.routes';
 
 const router = Router();
 
@@ -22,5 +23,6 @@ router.use('/technicians', publicTechnicianRoutes);
 router.use('/services', serviceRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/payments', paymentRoutes);
+router.use('/reviews', reviewRoutes);
 
 export default router;

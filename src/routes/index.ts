@@ -5,6 +5,7 @@ import adminRoutes from '../modules/admin/admin.routes';
 import technicianRoutes from '../modules/technicians/technician.routes';
 import publicTechnicianRoutes from '../modules/technicians/publicTechnician.routes';
 import serviceRoutes from '../modules/services/service.routes';
+import bookingRoutes from '../modules/bookings/booking.routes';
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use('/admin', adminRoutes);
 router.use('/technician', technicianRoutes);
 router.use('/technicians', publicTechnicianRoutes);
 router.use('/services', serviceRoutes);
+router.use('/bookings', bookingRoutes);
 
 export default router;

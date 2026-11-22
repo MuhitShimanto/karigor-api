@@ -1,0 +1,8 @@
+import { z } from 'zod';
+
+export const createPaymentSchema = z.object({
+  body: z.object({
+    bookingId: z.string().uuid(),
+    provider: z.enum(['STRIPE', 'SSLCOMMERZ']).optional(),
+  }),
+});

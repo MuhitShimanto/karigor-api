@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { ApiError } from '../../utils/ApiError';
 import { getPagination } from '../../utils/pagination';
+import { assertTransition } from './booking.stateMachine';
 import { BookingStatus, User, Prisma } from '@prisma/client';
 
 export interface CreateBookingInput {
@@ -161,5 +162,57 @@ export const bookingService = {
     }
 
     return booking;
+  },
+
+  async cancelBooking(customerId: string, bookingId: string) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new ApiError(404, 'Booking not found');
+    }
+
+    if (booking.customerId !== customerId) {
+      throw new ApiError(
+        403,
+        'You do not have permission to cancel this booking',
+      );
+    }
+
+    assertTransition(booking.status, 'CANCELLED');
+
+    return prisma.$transaction(async (tx) => {
+      // Release slot
+      await tx.availabilitySlot.update({
+        where: { id: booking.slotId },
+        data: { isBooked: false },
+      });
+
+      // If PAID, flag refundRequired in payment
+      if (booking.status === 'PAID') {
+        const payment = await tx.payment.findFirst({
+          where: { bookingId, status: 'COMPLETED' },
+        });
+        if (payment) {
+          const payload =
+            (payment.gatewayPayload as Record<string, unknown>) || {};
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: {
+              gatewayPayload: {
+                ...payload,
+                refundRequired: true,
+              } as Prisma.InputJsonValue,
+            },
+          });
+        }
+      }
+
+      return tx.booking.update({
+        where: { id: bookingId },
+        data: { status: 'CANCELLED' },
+      });
+    });
   },
 };

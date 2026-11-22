@@ -6,6 +6,7 @@ import {
   createBookingSchema,
   getBookingsQuerySchema,
   getBookingByIdSchema,
+  cancelBookingSchema,
 } from './booking.validation';
 import { bookingController } from './booking.controller';
 
@@ -21,5 +22,11 @@ router.post(
 );
 router.get('/', validate(getBookingsQuerySchema), bookingController.list);
 router.get('/:id', validate(getBookingByIdSchema), bookingController.getById);
+router.patch(
+  '/:id/cancel',
+  authorize('CUSTOMER'),
+  validate(cancelBookingSchema),
+  bookingController.cancel,
+);
 
 export default router;

@@ -33,4 +33,12 @@ export const bookingController = {
     );
     sendResponse(res, 200, 'Booking details retrieved successfully', booking);
   }),
+
+  cancel: catchAsync(async (req: Request, res: Response) => {
+    const booking = await bookingService.cancelBooking(
+      req.user!.id,
+      req.params.id as string,
+    );
+    sendResponse(res, 200, 'Booking cancelled successfully', booking);
+  }),
 };

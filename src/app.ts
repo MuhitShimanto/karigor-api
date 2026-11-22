@@ -2,10 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import swaggerUi from 'swagger-ui-express';
 import routes from './routes';
 import { env } from './config/env';
 import { notFound, errorHandler } from './middlewares/errorHandler';
 import { paymentController } from './modules/payments/payment.controller';
+import swaggerSpec from './config/swagger';
 
 const app = express();
 
@@ -26,6 +28,9 @@ app.post(
 );
 
 app.use(express.json());
+
+// Swagger UI Documentation
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use('/api', routes);
 

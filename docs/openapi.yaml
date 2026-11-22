@@ -1,0 +1,817 @@
+openapi: 3.0.3
+info:
+  title: Karigor API
+  version: 1.0.0
+  description: On-demand household services platform connecting customers with skilled technicians.
+servers:
+  - url: http://localhost:5000/api
+    description: Local development server
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: API is running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /auth/register:
+    post:
+      summary: Register a new customer or technician
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, password, role]
+              properties:
+                name:
+                  type: string
+                  example: Anis Customer
+                email:
+                  type: string
+                  format: email
+                  example: customer@karigor.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 8
+                  example: Password@123
+                role:
+                  type: string
+                  enum: [CUSTOMER, TECHNICIAN]
+                  example: CUSTOMER
+                phone:
+                  type: string
+                  example: "+8801700000001"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: customer@karigor.com
+                password:
+                  type: string
+                  format: password
+                  example: Password@123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccessResponse'
+        '401':
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Account banned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      summary: Get current logged-in user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Banned user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /categories:
+    get:
+      summary: List all active categories
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /services:
+    get:
+      summary: List all offered services with filters and pagination
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: minRating
+          in: query
+          schema:
+            type: number
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [rating, price, experience]
+            default: price
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        '200':
+          description: Services retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /technicians:
+    get:
+      summary: List public technicians with filters and pagination
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: minRating
+          in: query
+          schema:
+            type: number
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [rating, price, experience]
+            default: rating
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Technicians retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /technicians/{id}:
+    get:
+      summary: Get technician public profile, services, slots and reviews
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Technician details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Technician not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /technician/profile:
+    put:
+      summary: Update technician profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bio:
+                  type: string
+                skills:
+                  type: array
+                  items:
+                    type: string
+                experienceYears:
+                  type: integer
+                location:
+                  type: string
+                hourlyRate:
+                  type: number
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '403':
+          description: Forbidden - Technician role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /technician/services:
+    post:
+      summary: Create a service
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, categoryId, price]
+              properties:
+                title:
+                  type: string
+                categoryId:
+                  type: string
+                price:
+                  type: number
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /technician/services/{id}:
+    put:
+      summary: Update own service
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                categoryId:
+                  type: string
+                price:
+                  type: number
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Service updated
+        '404':
+          description: Service not found
+    delete:
+      summary: Delete own service
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Service deleted
+        '409':
+          description: Cannot delete service with active bookings
+
+  /technician/availability:
+    put:
+      summary: Update availability slots
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slots]
+              properties:
+                slots:
+                  type: array
+                  items:
+                    type: object
+                    required: [startTime, endTime]
+                    properties:
+                      startTime:
+                        type: string
+                        format: date-time
+                      endTime:
+                        type: string
+                        format: date-time
+      responses:
+        '200':
+          description: Availability slots updated
+        '400':
+          description: Invalid slot times
+        '409':
+          description: Overlapping slots
+
+  /technician/bookings:
+    get:
+      summary: List technician own bookings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [REQUESTED, ACCEPTED, DECLINED, PAID, IN_PROGRESS, COMPLETED, CANCELLED]
+      responses:
+        '200':
+          description: Technician bookings list
+
+  /technician/bookings/{id}:
+    patch:
+      summary: Accept, decline, start or complete booking
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [accept, decline, start, complete]
+      responses:
+        '200':
+          description: Booking status updated
+        '404':
+          description: Booking not found
+        '409':
+          description: Invalid transition
+
+  /bookings:
+    post:
+      summary: Create a booking
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [serviceId, slotId, address]
+              properties:
+                serviceId:
+                  type: string
+                slotId:
+                  type: string
+                address:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '201':
+          description: Booking requested
+        '400':
+          description: Slot invalid or past
+        '409':
+          description: Slot already booked
+    get:
+      summary: List user own bookings
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [REQUESTED, ACCEPTED, DECLINED, PAID, IN_PROGRESS, COMPLETED, CANCELLED]
+      responses:
+        '200':
+          description: Bookings retrieved
+
+  /bookings/{id}:
+    get:
+      summary: Get booking details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Booking details
+        '403':
+          description: Unauthorized
+        '404':
+          description: Booking not found
+
+  /bookings/{id}/cancel:
+    patch:
+      summary: Cancel a booking before in_progress
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Booking cancelled
+        '403':
+          description: Unauthorized
+        '409':
+          description: Invalid transition
+
+  /payments/create:
+    post:
+      summary: Create payment session for accepted booking
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId]
+              properties:
+                bookingId:
+                  type: string
+                provider:
+                  type: string
+                  enum: [STRIPE, SSLCOMMERZ]
+      responses:
+        '201':
+          description: Payment session created
+        '404':
+          description: Booking not found
+        '409':
+          description: Payment allowed only for ACCEPTED bookings
+
+  /payments/confirm:
+    post:
+      summary: Webhook endpoint for gateway verification
+      responses:
+        '200':
+          description: Webhook received and processed
+        '400':
+          description: Invalid signature
+
+  /payments:
+    get:
+      summary: Get payment history
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, COMPLETED, FAILED]
+      responses:
+        '200':
+          description: Payments retrieved
+
+  /payments/{id}:
+    get:
+      summary: Get payment details
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment details
+        '403':
+          description: Unauthorized
+        '404':
+          description: Payment not found
+
+  /reviews:
+    post:
+      summary: Submit a review for a completed booking
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bookingId, rating]
+              properties:
+                bookingId:
+                  type: string
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                comment:
+                  type: string
+      responses:
+        '201':
+          description: Review submitted
+        '404':
+          description: Booking not found
+        '409':
+          description: Booking not completed or already reviewed
+
+  /admin/users:
+    get:
+      summary: Admin list all users
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [CUSTOMER, TECHNICIAN, ADMIN]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, BANNED]
+      responses:
+        '200':
+          description: Users list
+
+  /admin/users/{id}:
+    patch:
+      summary: Ban or unban a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [ACTIVE, BANNED]
+      responses:
+        '200':
+          description: User status updated
+        '403':
+          description: Admin cannot ban an admin or self
+        '404':
+          description: User not found
+
+  /admin/bookings:
+    get:
+      summary: Admin list all bookings
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All bookings
+
+  /admin/categories:
+    get:
+      summary: Admin list categories
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Categories list
+    post:
+      summary: Admin create category
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        '201':
+          description: Category created
+        '409':
+          description: Duplicate category name
+
+  /admin/payments:
+    get:
+      summary: Admin list all payments
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: All payments
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Success
+        data:
+          type: object
+          nullable: true
+        meta:
+          type: object
+          nullable: true
+
+    AuthSuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Login successful
+        data:
+          type: object
+          properties:
+            token:
+              type: string
+              example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                role:
+                  type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Validation failed
+        errorDetails:
+          nullable: true

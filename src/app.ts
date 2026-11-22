@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import routes from './routes';
 import { env } from './config/env';
 import { notFound, errorHandler } from './middlewares/errorHandler';
+import { paymentController } from './modules/payments/payment.controller';
 
 const app = express();
 
@@ -16,6 +17,14 @@ app.use(
   }),
 );
 app.use(morgan(env.NODE_ENV === 'development' ? 'dev' : 'combined'));
+
+// Webhook requires raw body before express.json
+app.post(
+  '/api/payments/confirm',
+  express.raw({ type: 'application/json' }),
+  paymentController.confirm,
+);
+
 app.use(express.json());
 
 app.use('/api', routes);

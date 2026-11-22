@@ -1,7 +1,12 @@
 import { prisma } from '../../config/prisma';
+import { env } from '../../config/env';
 import { ApiError } from '../../utils/ApiError';
 import { stripeProvider } from './providers/stripe.provider';
-import { PaymentProvider } from './providers/provider.interface';
+import {
+  PaymentProvider,
+  VerifyEventInput,
+} from './providers/provider.interface';
+import { Prisma } from '@prisma/client';
 
 export const generateTransactionId = (): string => {
   const timestamp = Date.now();
@@ -84,5 +89,45 @@ export const paymentService = {
       transactionId,
       redirectUrl,
     };
+  },
+
+  async confirmPayment(input: VerifyEventInput, providerName?: string) {
+    const provider = getProvider(providerName || env.PAYMENT_PROVIDER);
+    const result = await provider.verifyEvent(input);
+    if (!result.transactionId) return { ignored: true };
+
+    await prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { transactionId: result.transactionId },
+      });
+      if (!payment) throw new ApiError(404, 'Payment not found');
+      if (payment.status !== 'PENDING') return; // idempotent: repeated events change nothing
+
+      if (result.success) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: 'COMPLETED',
+            paidAt: new Date(),
+            method: result.method,
+            gatewayPayload: result.raw as Prisma.InputJsonValue,
+          },
+        });
+        await tx.booking.update({
+          where: { id: payment.bookingId },
+          data: { status: 'PAID' },
+        });
+      } else {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: 'FAILED',
+            gatewayPayload: result.raw as Prisma.InputJsonValue,
+          },
+        });
+      }
+    });
+
+    return { received: true };
   },
 };

@@ -6,7 +6,13 @@ import {
   PaymentProvider,
   VerifyEventInput,
 } from './providers/provider.interface';
-import { Prisma } from '@prisma/client';
+import { getPagination } from '../../utils/pagination';
+import {
+  Prisma,
+  User,
+  PaymentStatus,
+  PaymentProvider as PaymentProviderType,
+} from '@prisma/client';
 
 export const generateTransactionId = (): string => {
   const timestamp = Date.now();
@@ -24,6 +30,13 @@ export const getProvider = (name?: string): PaymentProvider => {
 export interface CreatePaymentInput {
   bookingId: string;
   provider?: 'STRIPE' | 'SSLCOMMERZ';
+}
+
+export interface ListPaymentsQuery {
+  status?: PaymentStatus;
+  provider?: PaymentProviderType;
+  page?: number;
+  limit?: number;
 }
 
 export const paymentService = {
@@ -101,7 +114,7 @@ export const paymentService = {
         where: { transactionId: result.transactionId },
       });
       if (!payment) throw new ApiError(404, 'Payment not found');
-      if (payment.status !== 'PENDING') return; // idempotent: repeated events change nothing
+      if (payment.status !== 'PENDING') return;
 
       if (result.success) {
         await tx.payment.update({
@@ -129,5 +142,85 @@ export const paymentService = {
     });
 
     return { received: true };
+  },
+
+  async listPayments(user: User, query: ListPaymentsQuery) {
+    const { skip, take, page, limit } = getPagination(query);
+
+    const where: Prisma.PaymentWhereInput = {};
+    if (user.role === 'CUSTOMER') {
+      where.booking = { customerId: user.id };
+    } else if (user.role === 'TECHNICIAN') {
+      const profile = await prisma.technicianProfile.findUnique({
+        where: { userId: user.id },
+      });
+      if (!profile) {
+        return { items: [], meta: { page, limit, total: 0, totalPages: 0 } };
+      }
+      where.booking = { technicianId: profile.id };
+    }
+
+    if (query.status) where.status = query.status;
+    if (query.provider) where.provider = query.provider;
+
+    const [items, total] = await prisma.$transaction([
+      prisma.payment.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          booking: {
+            include: {
+              service: { select: { id: true, title: true } },
+              customer: { select: { id: true, name: true, email: true } },
+            },
+          },
+        },
+      }),
+      prisma.payment.count({ where }),
+    ]);
+
+    return {
+      items,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
+  async getPaymentById(user: User, paymentId: string) {
+    const payment = await prisma.payment.findUnique({
+      where: { id: paymentId },
+      include: {
+        booking: {
+          include: {
+            service: { select: { id: true, title: true } },
+            customer: { select: { id: true, name: true, email: true } },
+            technician: { select: { id: true, userId: true } },
+          },
+        },
+      },
+    });
+
+    if (!payment) {
+      throw new ApiError(404, 'Payment not found');
+    }
+
+    const isOwner = payment.booking.customerId === user.id;
+    const isAdmin = user.role === 'ADMIN';
+    const isTechnician = payment.booking.technician.userId === user.id;
+
+    if (!isOwner && !isAdmin && !isTechnician) {
+      throw new ApiError(
+        403,
+        'You do not have permission to view this payment',
+      );
+    }
+
+    return payment;
   },
 };

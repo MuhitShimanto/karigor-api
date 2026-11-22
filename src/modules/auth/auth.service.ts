@@ -84,4 +84,21 @@ export const authService = {
       user: sanitize(user),
     };
   },
+
+  async getMe(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { technicianProfile: true },
+    });
+
+    if (!user) {
+      throw new ApiError(404, 'User no longer exists');
+    }
+
+    if (user.status === 'BANNED') {
+      throw new ApiError(403, 'Your account has been banned');
+    }
+
+    return sanitize(user);
+  },
 };

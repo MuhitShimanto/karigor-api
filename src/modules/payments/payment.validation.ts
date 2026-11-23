@@ -21,3 +21,9 @@ export const getPaymentByIdSchema = z.object({
     id: z.string().min(1),
   }),
 });
+
+export const verifySessionSchema = z.object({
+  body: z.object({
+    sessionId: z.string().min(1),
+  }),
+});

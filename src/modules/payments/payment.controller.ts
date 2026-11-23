@@ -43,4 +43,9 @@ export const paymentController = {
     );
     sendResponse(res, 200, 'Payment details retrieved successfully', payment);
   }),
+
+  verifySession: catchAsync(async (req: Request, res: Response) => {
+    const result = await paymentService.verifySession(req.body.sessionId);
+    sendResponse(res, 200, 'Payment session verified successfully', result);
+  }),
 };

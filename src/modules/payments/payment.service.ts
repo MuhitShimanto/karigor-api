@@ -1,3 +1,4 @@
+import Stripe from 'stripe';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { ApiError } from '../../utils/ApiError';
@@ -142,6 +143,103 @@ export const paymentService = {
     });
 
     return { received: true };
+  },
+
+  async verifySession(sessionId: string) {
+    if (!env.STRIPE_SECRET_KEY) {
+      throw new ApiError(500, 'STRIPE_SECRET_KEY is not configured');
+    }
+    const stripe = new Stripe(env.STRIPE_SECRET_KEY);
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+    if (session.payment_status !== 'paid') {
+      return { success: false, message: 'Payment has not been completed yet.' };
+    }
+
+    const transactionId = session.metadata?.transactionId;
+    const bookingId = session.metadata?.bookingId;
+
+    return prisma.$transaction(async (tx) => {
+      let payment = null;
+      if (transactionId) {
+        payment = await tx.payment.findUnique({
+          where: { transactionId },
+          include: {
+            booking: {
+              include: {
+                service: true,
+              },
+            },
+          },
+        });
+      }
+      if (!payment && bookingId) {
+        payment = await tx.payment.findFirst({
+          where: { bookingId },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            booking: {
+              include: {
+                service: true,
+              },
+            },
+          },
+        });
+      }
+      if (!payment) {
+        payment = await tx.payment.findFirst({
+          where: {
+            gatewayPayload: {
+              path: ['providerRef'],
+              equals: sessionId,
+            },
+          },
+          include: {
+            booking: {
+              include: {
+                service: true,
+              },
+            },
+          },
+        });
+      }
+
+      if (!payment) {
+        throw new ApiError(
+          404,
+          'Payment record not found for this checkout session.'
+        );
+      }
+
+      if (payment.status !== 'COMPLETED') {
+        payment = await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            status: 'COMPLETED',
+            paidAt: new Date(),
+            method: 'card',
+            gatewayPayload: session as unknown as Prisma.InputJsonValue,
+          },
+          include: {
+            booking: {
+              include: {
+                service: true,
+              },
+            },
+          },
+        });
+
+        await tx.booking.update({
+          where: { id: payment.bookingId },
+          data: { status: 'PAID' },
+        });
+      }
+
+      return {
+        success: true,
+        payment,
+      };
+    });
   },
 
   async listPayments(user: User, query: ListPaymentsQuery) {

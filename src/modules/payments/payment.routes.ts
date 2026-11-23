@@ -6,6 +6,7 @@ import {
   createPaymentSchema,
   getPaymentsQuerySchema,
   getPaymentByIdSchema,
+  verifySessionSchema,
 } from './payment.validation';
 import { paymentController } from './payment.controller';
 
@@ -18,6 +19,11 @@ router.post(
   authorize('CUSTOMER'),
   validate(createPaymentSchema),
   paymentController.create,
+);
+router.post(
+  '/verify-session',
+  validate(verifySessionSchema),
+  paymentController.verifySession,
 );
 router.get('/', validate(getPaymentsQuerySchema), paymentController.list);
 router.get('/:id', validate(getPaymentByIdSchema), paymentController.getById);

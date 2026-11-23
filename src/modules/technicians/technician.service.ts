@@ -262,6 +262,7 @@ export const technicianService = {
           customer: {
             select: { id: true, name: true, email: true, phone: true },
           },
+          review: true,
         },
       }),
       prisma.booking.count({ where }),
@@ -312,6 +313,7 @@ export const technicianService = {
           customer: {
             select: { id: true, name: true, email: true, phone: true },
           },
+          review: true,
         },
       });
     });

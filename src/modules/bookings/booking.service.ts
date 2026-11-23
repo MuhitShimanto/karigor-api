@@ -113,6 +113,7 @@ export const bookingService = {
               user: { select: { id: true, name: true, email: true, phone: true } },
             },
           },
+          review: true,
         },
       }),
       prisma.booking.count({ where }),
@@ -143,6 +144,7 @@ export const bookingService = {
             user: { select: { id: true, name: true, email: true, phone: true } },
           },
         },
+        review: true,
       },
     });
 

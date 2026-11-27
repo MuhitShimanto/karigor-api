@@ -29,6 +29,15 @@ app.post(
 
 app.use(express.json());
 
+app.get('/', (_req, res) => {
+  res.json({
+    success: true,
+    message: 'Karigor API is running',
+    docs: '/api/docs',
+    health: '/api/health',
+  });
+});
+
 // Swagger UI Documentation
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 

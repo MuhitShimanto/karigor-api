@@ -4,6 +4,10 @@ info:
   version: 1.0.0
   description: On-demand household services platform connecting customers with skilled technicians.
 servers:
+  - url: /api
+    description: Current server
+  - url: https://karigor-api.vercel.app/api
+    description: Production server (Vercel)
   - url: http://localhost:5000/api
     description: Local development server
 paths:
